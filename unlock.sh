@@ -14,14 +14,9 @@ else
 fi
 
 # -------- 2. RESTORE NPM --------
-for NPM_REAL in $(find /home -name "npm-real" -path "*/bin/npm-real" 2>/dev/null) /usr/bin/npm-real /usr/local/bin/npm-real; do
-    if [ -f "$NPM_REAL" ]; then
-        NPM_BIN="${NPM_REAL%-real}"
-        rm -f "$NPM_BIN"
-        mv "$NPM_REAL" "$NPM_BIN"
-        echo "[OK] npm restored: $NPM_BIN"
-    fi
-done
+rm -f /usr/local/bin/npm
+rm -f /usr/local/bin/npx
+echo "[OK] npm/npx wrappers removed"
 
 # -------- 3. RESTORE UPLOAD TOOLS --------
 for tool in curl wget scp rsync ftp sftp; do

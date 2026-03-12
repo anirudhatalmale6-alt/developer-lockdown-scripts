@@ -21,24 +21,52 @@ chmod +x /usr/local/bin/git
 echo "[OK] git push/remote blocked"
 
 # -------- 2. NPM LOGIN/PUBLISH BLOCK --------
-# Find npm in all user NVM installs and system paths
-for NPM_BIN in $(find /home -name "npm" -path "*/bin/npm" 2>/dev/null) /usr/bin/npm /usr/local/bin/npm; do
-    if [ -f "$NPM_BIN" ] && [ ! -L "$NPM_BIN" ] && [ ! -f "${NPM_BIN}-real" ]; then
-        cp "$NPM_BIN" "${NPM_BIN}-real"
-        cat > "$NPM_BIN" << NPMEOF
+# Global wrapper at /usr/local/bin/npm (higher PATH priority)
+# This intercepts npm regardless of NVM version
+cat > /usr/local/bin/npm << 'NPMEOF'
 #!/bin/bash
-case "\$1" in
+case "$1" in
     login|publish|adduser|whoami|token)
-        echo "BLOCKED: npm \$1 is disabled by admin"
+        echo "BLOCKED: npm $1 is disabled by admin"
         exit 1
         ;;
 esac
-exec "${NPM_BIN}-real" "\$@"
-NPMEOF
-        chmod +x "$NPM_BIN"
-        echo "[OK] npm blocked: $NPM_BIN"
+# Find the real npm (skip ourselves at /usr/local/bin/npm)
+REAL_NPM=""
+for p in $(which -a npm 2>/dev/null); do
+    if [ "$p" != "/usr/local/bin/npm" ]; then
+        REAL_NPM="$p"
+        break
     fi
 done
+if [ -z "$REAL_NPM" ]; then
+    echo "npm not found"
+    exit 1
+fi
+exec "$REAL_NPM" "$@"
+NPMEOF
+chmod +x /usr/local/bin/npm
+echo "[OK] npm login/publish blocked (global wrapper)"
+
+# Also block npx publish just in case
+cat > /usr/local/bin/npx << 'NPXEOF'
+#!/bin/bash
+# npx works normally, just block npm publish through it
+REAL_NPX=""
+for p in $(which -a npx 2>/dev/null); do
+    if [ "$p" != "/usr/local/bin/npx" ]; then
+        REAL_NPX="$p"
+        break
+    fi
+done
+if [ -z "$REAL_NPX" ]; then
+    echo "npx not found"
+    exit 1
+fi
+exec "$REAL_NPX" "$@"
+NPXEOF
+chmod +x /usr/local/bin/npx
+echo "[OK] npx wrapper set"
 
 # -------- 3. BLOCK UPLOAD TOOLS --------
 for tool in curl wget scp rsync ftp sftp; do
