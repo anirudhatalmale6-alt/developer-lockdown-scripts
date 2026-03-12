@@ -1,37 +1,44 @@
 #!/bin/bash
+# Developer Unlock Script
+# Run as: sudo bash unlock.sh
+# Restores everything blocked by lockdown.sh
 
-echo "Removing developer lockdown..."
+echo "=== Removing Developer Lockdown ==="
 
-# ---------- RESTORE GIT ----------
+# -------- 1. RESTORE GIT --------
 if [ -f /usr/local/bin/git ]; then
-    sudo rm -f /usr/local/bin/git
-    echo "  Git restored"
+    rm -f /usr/local/bin/git
+    echo "[OK] git restored"
 else
-    echo "  Git already clean"
+    echo "[--] git already clean"
 fi
 
-# ---------- RESTORE NVM NPM ----------
-NPM_PATH=$(which npm 2>/dev/null)
-
-if [[ "$NPM_PATH" == *".nvm"* ]] && [ -f "$NPM_PATH-real" ]; then
-    rm -f "$NPM_PATH"
-    mv "$NPM_PATH-real" "$NPM_PATH"
-    echo "  NPM restored"
-else
-    echo "  NPM already clean"
-fi
-
-# ---------- RESTORE TOOLS ----------
-for tool in curl wget scp rsync ftp; do
-    if [ -f "/usr/bin/$tool" ]; then
-        sudo chmod 755 "/usr/bin/$tool" 2>/dev/null
+# -------- 2. RESTORE NPM --------
+for NPM_REAL in $(find /home -name "npm-real" -path "*/bin/npm-real" 2>/dev/null) /usr/bin/npm-real /usr/local/bin/npm-real; do
+    if [ -f "$NPM_REAL" ]; then
+        NPM_BIN="${NPM_REAL%-real}"
+        rm -f "$NPM_BIN"
+        mv "$NPM_REAL" "$NPM_BIN"
+        echo "[OK] npm restored: $NPM_BIN"
     fi
 done
-echo "  curl/wget/scp/rsync/ftp restored"
 
-# ---------- RESTORE USB ----------
-sudo modprobe usb_storage 2>/dev/null
-echo "  USB storage restored"
+# -------- 3. RESTORE UPLOAD TOOLS --------
+for tool in curl wget scp rsync ftp sftp; do
+    if [ -f "/usr/bin/$tool" ]; then
+        chmod 755 "/usr/bin/$tool" 2>/dev/null && echo "[OK] $tool restored"
+    fi
+done
+
+# -------- 4. RESTORE USB --------
+rm -f /etc/modprobe.d/block-usb.conf
+modprobe usb_storage 2>/dev/null
+echo "[OK] USB storage restored"
+
+# -------- 5. RESTORE BLUETOOTH --------
+systemctl enable bluetooth 2>/dev/null
+systemctl start bluetooth 2>/dev/null
+echo "[OK] Bluetooth restored"
 
 echo ""
-echo "Lockdown removed"
+echo "=== Lockdown Removed ==="

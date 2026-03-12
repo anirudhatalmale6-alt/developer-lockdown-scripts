@@ -1,61 +1,62 @@
 #!/bin/bash
+# Developer Lockdown Script
+# Run as: sudo bash lockdown.sh
+# Blocks: git push, npm publish, upload tools, USB
 
-echo "Applying developer lockdown..."
+echo "=== Applying Developer Lockdown ==="
 
-# ---------------- GIT WRAPPER ----------------
-# Real git is at /usr/bin/git, wrapper goes to /usr/local/bin/git (higher priority in PATH)
-if [ ! -f /usr/local/bin/git ]; then
-    sudo bash -c 'cat > /usr/local/bin/git << "GITEOF"
+# -------- 1. GIT PUSH BLOCK --------
+# Wrapper at /usr/local/bin/git (higher PATH priority than /usr/bin/git)
+cat > /usr/local/bin/git << 'GITEOF'
 #!/bin/bash
-blocked_cmds="push remote"
-for cmd in $blocked_cmds; do
-    if [[ "$1" == "$cmd" ]]; then
-        echo "git $1 blocked by admin"
-        exit 1
-    fi
-done
-exec /usr/bin/git "$@"
-GITEOF'
-    sudo chmod +x /usr/local/bin/git
-    echo "  Git push/remote blocked"
-else
-    echo "  Git wrapper already exists"
-fi
-
-# ---------------- NPM WRAPPER (NVM) ----------------
-NPM_PATH=$(which npm 2>/dev/null)
-
-if [[ "$NPM_PATH" == *".nvm"* ]]; then
-    if [ ! -f "$NPM_PATH-real" ]; then
-        cp "$NPM_PATH" "$NPM_PATH-real"
-        cat > "$NPM_PATH" << NPMEOF
-#!/bin/bash
-case "\$1" in
-    login|publish|adduser|whoami)
-        echo "npm \$1 blocked by admin"
+case "$1" in
+    push|remote)
+        echo "BLOCKED: git $1 is disabled by admin"
         exit 1
         ;;
 esac
-exec "${NPM_PATH}-real" "\$@"
-NPMEOF
-        chmod +x "$NPM_PATH"
-        echo "  NPM login/publish blocked"
-    else
-        echo "  NPM wrapper already exists"
-    fi
-fi
+exec /usr/bin/git "$@"
+GITEOF
+chmod +x /usr/local/bin/git
+echo "[OK] git push/remote blocked"
 
-# ---------------- BLOCK UPLOAD TOOLS ----------------
-for tool in curl wget scp rsync ftp; do
-    if [ -f "/usr/bin/$tool" ]; then
-        sudo chmod 000 "/usr/bin/$tool" 2>/dev/null
+# -------- 2. NPM LOGIN/PUBLISH BLOCK --------
+# Find npm in all user NVM installs and system paths
+for NPM_BIN in $(find /home -name "npm" -path "*/bin/npm" 2>/dev/null) /usr/bin/npm /usr/local/bin/npm; do
+    if [ -f "$NPM_BIN" ] && [ ! -L "$NPM_BIN" ] && [ ! -f "${NPM_BIN}-real" ]; then
+        cp "$NPM_BIN" "${NPM_BIN}-real"
+        cat > "$NPM_BIN" << NPMEOF
+#!/bin/bash
+case "\$1" in
+    login|publish|adduser|whoami|token)
+        echo "BLOCKED: npm \$1 is disabled by admin"
+        exit 1
+        ;;
+esac
+exec "${NPM_BIN}-real" "\$@"
+NPMEOF
+        chmod +x "$NPM_BIN"
+        echo "[OK] npm blocked: $NPM_BIN"
     fi
 done
-echo "  curl/wget/scp/rsync/ftp blocked"
 
-# ---------------- USB BLOCK ----------------
-sudo modprobe -r usb_storage 2>/dev/null
-echo "  USB storage blocked"
+# -------- 3. BLOCK UPLOAD TOOLS --------
+for tool in curl wget scp rsync ftp sftp; do
+    if [ -f "/usr/bin/$tool" ]; then
+        chmod 000 "/usr/bin/$tool" 2>/dev/null && echo "[OK] $tool blocked"
+    fi
+done
+
+# -------- 4. USB STORAGE BLOCK --------
+modprobe -r usb_storage 2>/dev/null
+echo "install usb_storage /bin/false" > /etc/modprobe.d/block-usb.conf
+echo "[OK] USB storage blocked"
+
+# -------- 5. BLOCK BLUETOOTH FILE TRANSFER --------
+systemctl stop bluetooth 2>/dev/null
+systemctl disable bluetooth 2>/dev/null
+echo "[OK] Bluetooth disabled"
 
 echo ""
-echo "Developer lockdown applied"
+echo "=== Developer Lockdown Applied ==="
+echo "Blocked: git push, npm publish, curl, wget, scp, rsync, ftp, sftp, USB, Bluetooth"
