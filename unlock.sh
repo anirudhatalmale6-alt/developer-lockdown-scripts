@@ -14,9 +14,10 @@ else
 fi
 
 # -------- 2. RESTORE NPM --------
+rm -f /etc/profile.d/npm-lockdown.sh
 rm -f /usr/local/bin/npm
 rm -f /usr/local/bin/npx
-echo "[OK] npm/npx wrappers removed"
+echo "[OK] npm lockdown removed (reopen terminal to take effect)"
 
 # -------- 3. RESTORE UPLOAD TOOLS --------
 for tool in curl wget scp rsync ftp sftp; do
@@ -37,3 +38,4 @@ echo "[OK] Bluetooth restored"
 
 echo ""
 echo "=== Lockdown Removed ==="
+echo "NOTE: npm unlock requires new terminal or run: unset -f npm"
